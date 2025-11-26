@@ -1,4 +1,5 @@
 import Image from "next/image";
+import {Text} from "lucide-react";
 
 export default function Home() {
   return (
@@ -59,7 +60,13 @@ export default function Home() {
             Documentation
           </a>
         </div>
+        <div className='flex gap-5 justify-center items-center'>
+          <p>STADVDB S19 Group 2</p>
+          <p> | </p>
+          <a>Technical Report</a>
+        </div>
       </main>
+
     </div>
   );
 }
