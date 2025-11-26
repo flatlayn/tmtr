@@ -1,65 +1,294 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Database, Activity, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+
+interface NodeStatus {
+  nodeId: number;
+  isHealthy: boolean;
+  lastChecked: string;
+}
+
+interface Transaction {
+  trans_id: number;
+  account_id: number;
+  trans_date: string;
+  trans_type: string;
+  operation: string;
+  amount: number;
+  balance: number;
+}
 
 export default function Home() {
+  const [nodeStatuses, setNodeStatuses] = useState<NodeStatus[]>([]);
+  const [transactions, setTransactions] = useState<{ [key: string]: Transaction[] }>({});
+  const [loading, setLoading] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<number>(0);
+
+  useEffect(() => {
+    checkHealth();
+    loadTransactions();
+    
+    // Auto-refresh every 10 seconds
+    const interval = setInterval(() => {
+      checkHealth();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const checkHealth = async () => {
+    try {
+      const response = await fetch('/api/health');
+      const result = await response.json();
+      if (result.success) {
+        setNodeStatuses(result.data);
+      }
+    } catch (error) {
+      console.error('Health check failed:', error);
+    }
+  };
+
+  const loadTransactions = async (nodeId?: number) => {
+    setLoading(true);
+    try {
+      const url = nodeId !== undefined 
+        ? `/api/transactions?nodeId=${nodeId}&limit=10` 
+        : '/api/transactions?limit=10';
+      
+      const response = await fetch(url);
+      const result = await response.json();
+      
+      if (result.success) {
+        setTransactions(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load transactions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const syncNode = async (nodeId: number) => {
+    if (!confirm(`Are you sure you want to sync Node ${nodeId}? This will recover missed transactions.`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/replication', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'SYNC',
+          recoveredNodeId: nodeId
+        })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        alert(`Successfully synced ${result.data.synced} transactions to Node ${nodeId}`);
+        loadTransactions();
+      } else {
+        alert(`Sync failed: ${result.data.errors.join(', ')}`);
+      }
+    } catch (error: any) {
+      alert(`Sync error: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getNodeName = (nodeId: number) => {
+    switch (nodeId) {
+      case 0: return 'Central Node';
+      case 1: return 'Partition Node 1';
+      case 2: return 'Partition Node 2';
+      default: return `Node ${nodeId}`;
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">
+            Distributed Database Management System
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-slate-600 dark:text-slate-400">
+            Transaction Management & Replication Monitor | STADVDB S19 Group 2
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Node Health Status */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          {nodeStatuses.map((status) => (
+            <div
+              key={status.nodeId}
+              className={`bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 border-2 transition-all ${
+                status.isHealthy
+                  ? 'border-green-500 hover:shadow-xl'
+                  : 'border-red-500 animate-pulse'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Database className={status.isHealthy ? 'text-green-500' : 'text-red-500'} size={24} />
+                  <div>
+                    <h3 className="font-semibold text-slate-900 dark:text-white">
+                      {getNodeName(status.nodeId)}
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Port: {60727 + status.nodeId}
+                    </p>
+                  </div>
+                </div>
+                {status.isHealthy ? (
+                  <CheckCircle className="text-green-500" size={20} />
+                ) : (
+                  <AlertCircle className="text-red-500" size={20} />
+                )}
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className={`text-sm font-medium ${
+                  status.isHealthy ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {status.isHealthy ? 'Online' : 'Offline'}
+                </span>
+                {!status.isHealthy && (
+                  <button
+                    onClick={() => syncNode(status.nodeId)}
+                    disabled={loading}
+                    className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <RefreshCw size={14} />
+                    Sync
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      </main>
+
+        {/* Actions Bar */}
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 mb-8">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <Activity className="text-blue-500" size={24} />
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+                Transaction Viewer
+              </h2>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <select
+                value={selectedNode}
+                onChange={(e) => {
+                  const node = parseInt(e.target.value);
+                  setSelectedNode(node);
+                  loadTransactions(node);
+                }}
+                className="px-4 py-2 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+              >
+                <option value={0}>Node 0 (Central)</option>
+                <option value={1}>Node 1 (Partition)</option>
+                <option value={2}>Node 2 (Partition)</option>
+              </select>
+              
+              <button
+                onClick={() => loadTransactions(selectedNode)}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+              >
+                <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Transactions Table */}
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-100 dark:bg-slate-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    Trans ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    Account ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    Operation
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    Balance
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                      <RefreshCw className="animate-spin mx-auto mb-2" size={24} />
+                      Loading transactions...
+                    </td>
+                  </tr>
+                ) : transactions[`node${selectedNode}`]?.length > 0 ? (
+                  transactions[`node${selectedNode}`].map((trans) => (
+                    <tr key={trans.trans_id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">
+                        {trans.trans_id}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                        {trans.account_id}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                        {trans.trans_date}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                        {trans.trans_type}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                        {trans.operation}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-900 dark:text-white font-medium">
+                        ${trans.amount.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-900 dark:text-white font-medium">
+                        ${trans.balance.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                      No transactions found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Footer Info */}
+        <div className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400">
+          <p>MCO2 - Distributed Database System | STADVDB S19 Group 2</p>
+        </div>
+      </div>
     </div>
   );
 }
