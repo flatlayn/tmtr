@@ -25,6 +25,7 @@ export class PersistenceService {
             // Convert the operation data (transaction or updates) into a JSON string
             const payloadString = operation.data ? JSON.stringify(operation.data) : null;
 
+            // Use the actual trans_id (placeholder must exist on Node 0 to satisfy foreign key)
             await node0Service.executeQuery(
                 `INSERT INTO replication_queue 
                  (target_node_id, operation_type, trans_id, payload, status)
@@ -40,6 +41,7 @@ export class PersistenceService {
         } catch (error) {
             console.error('CRITICAL: Failed to enqueue replication job on Node 0!', error);
             // In a production system, this failure would trigger an alert.
+            throw error; // Re-throw so caller knows it failed
         }
     }
 
@@ -87,5 +89,22 @@ export class PersistenceService {
             `UPDATE replication_queue SET status = 'COMPLETE' WHERE id = ?`,
             [jobId]
         );
+    }
+
+    /**
+     * Get all jobs from the queue (for monitoring/status display)
+     */
+    static async getAllJobs(): Promise<any[]> {
+        const node0Service = getTransactionService(0);
+        
+        try {
+            const jobs = await node0Service.executeQuery(
+                `SELECT * FROM replication_queue ORDER BY created_at DESC LIMIT 100`
+            );
+            return jobs || [];
+        } catch (error) {
+            console.error('Error fetching all jobs from queue:', error);
+            return [];
+        }
     }
 }

@@ -15,7 +15,6 @@ interface CreateTransactionProps {
 }
 
 interface NewTransaction {
-    trans_type: string;
     operation: string;
     amount: number;
     balance: number;
@@ -45,7 +44,7 @@ export default function CreateTransaction({ nodeStatuses } : CreateTransactionPr
         setIsLoading(true);
         setMessage('');
 
-        if (!formData.trans_type || !formData.operation || !formData.amount || !formData.balance) {
+        if (!formData.operation || !formData.amount || !formData.balance) {
             setMessage('Please fill out all required fields.');
             setIsLoading(false);
             return;
@@ -94,36 +93,22 @@ export default function CreateTransaction({ nodeStatuses } : CreateTransactionPr
 
     return (
         <div className='border-1 rounded-md p-3 bg-white drop-shadow-sm gap-3'>
-            <h2 className='ml-1 mb-2 text-xl font-semibold'>Create</h2>
-            <div className='flex w-full gap-5'>
+            <h2 className='ml-1 mb-2 text-xl font-semibold'>Create Transaction</h2>
+            <div className='mb-3'>
                 <Select
-                    onValueChange={(value) => handleInputChange('trans_type', value)}
-                    value={formData.trans_type}
-                    disabled={isLoading}
-                >
-                    <SelectTrigger className='w-full'>
-                        <SelectValue placeholder="Type"></SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value='credit'>Credit</SelectItem>
-                        <SelectItem value='debit'>Debit</SelectItem>
-                        <SelectItem value='vyber'>VYBER</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Select
-                    onValueChange={(value) => handleInputChange('operation', value)}
+                    onValueChange={(value: string) => handleInputChange('operation', value)}
                     value={formData.operation}
                     disabled={isLoading}
                 >
                     <SelectTrigger className='w-full'>
-                        <SelectValue placeholder='Operation'></SelectValue>
+                        <SelectValue placeholder='Select Operation'></SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value='cic'>Credit in Cash</SelectItem>
-                        <SelectItem value='cab'>Collection from Another Bank</SelectItem>
-                        <SelectItem value='rab>'>Remittance from Another Bank</SelectItem>
-                        <SelectItem value='wic'>Withdrawal in Cash</SelectItem>
-                        <SelectItem value='ccw'>Credit Card Withdrawal</SelectItem>
+                        <SelectItem value='DEPOSIT'>Deposit</SelectItem>
+                        <SelectItem value='WITHDRAWAL'>Withdrawal</SelectItem>
+                        <SelectItem value='TRANSFER'>Transfer</SelectItem>
+                        <SelectItem value='PAYMENT'>Payment</SelectItem>
+                        <SelectItem value='TEST'>Test Transaction</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -134,10 +119,10 @@ export default function CreateTransaction({ nodeStatuses } : CreateTransactionPr
                             <Field>
                                 <FieldLabel className='ml-1'>Amount</FieldLabel>
                                 <Input
-                                    placeholder='In PHP'
+                                    placeholder='Amount in PHP'
                                     type='number'
                                     step='0.01'
-                                    onChange={(e) => handleInputChange('amount', e.target.value)}
+                                    onChange={(e: any) => handleInputChange('amount', e.target.value)}
                                     value={formData.amount || ''}
                                     disabled={isLoading}
                                 ></Input>
@@ -145,10 +130,10 @@ export default function CreateTransaction({ nodeStatuses } : CreateTransactionPr
                             <Field>
                                 <FieldLabel className='ml-1'>Balance</FieldLabel>
                                 <Input
-                                    placeholder='In PHP'
+                                    placeholder='Balance in PHP'
                                     type='number'
                                     step='0.01'
-                                    onChange={(e) => handleInputChange('balance', e.target.value)}
+                                    onChange={(e: any) => handleInputChange('balance', e.target.value)}
                                     value={formData.balance || ''}
                                     disabled={isLoading}
                                 ></Input>
@@ -157,10 +142,14 @@ export default function CreateTransaction({ nodeStatuses } : CreateTransactionPr
                     </FieldGroup>
                 </FieldSet>
             </form>
-            <Button className='mt-3' type="submit" disabled={isLoading}>
-                {isLoading ? 'Creating...' : 'Create'}
+            <Button className='mt-3 w-full' onClick={handleSubmit} type="button" disabled={isLoading}>
+                {isLoading ? 'Creating...' : 'Create Transaction'}
             </Button>
-            {message && <p className={`mt-3 text-sm ${message.startsWith('❌') ? 'text-red-600' : 'text-gray-700'}`}>{message}</p>}
+            {message && (
+                <p className={`mt-3 text-sm ${message.includes('Success') ? 'text-green-600' : message.includes('Error') ? 'text-red-600' : 'text-gray-700'}`}>
+                    {message}
+                </p>
+            )}
         </div>
     );
 }

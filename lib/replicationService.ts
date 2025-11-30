@@ -151,13 +151,10 @@ export class ReplicationService {
                 }
 
                 await targetService.executeQuery(
-                    `INSERT INTO trans (trans_id, account_id, trans_date, trans_type, operation, amount, balance)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO trans (trans_id, operation, amount, balance)
+                     VALUES (?, ?, ?, ?)`,
                     [
                         transaction.trans_id,
-                        transaction.account_id,
-                        transaction.trans_date,
-                        transaction.trans_type,
                         transaction.operation,
                         transaction.amount,
                         transaction.balance
@@ -232,22 +229,29 @@ export class ReplicationService {
             if (recoveredNodeId === 0) {
                 errors.push('Central node recovery not yet implemented (requires merging)');
             } else {
-                // Partition node recovered - sync from central node
+                // Partition node recovered - sync recent transactions only (last 100)
                 const centralService = getTransactionService(0);
-                const allTransactions = await centralService.getAllTransactions(10000); // Get all from central
+                const recoveredService = getTransactionService(recoveredNodeId);
+                
+                // Get recent transactions from central (last 100, ordered by trans_id DESC)
+                const recentTransactions = await centralService.executeQuery(
+                    'SELECT * FROM trans ORDER BY trans_id DESC LIMIT 100'
+                );
 
-                for (const transaction of allTransactions) {
+                for (const transaction of recentTransactions) {
                     // Check if this transaction belongs to this partition
                     const targetNode = this.determinePartitionNode(transaction.trans_id);
-
                     if (targetNode !== recoveredNodeId) continue;
 
-                    // FIX 4: Use the existing replicateToNode helper for robust insertion logic
+                    // Check if transaction already exists on recovered node
+                    const existing = await recoveredService.getTransactionById(transaction.trans_id);
+                    if (existing) continue; // Already has it, skip
+
+                    // Insert missing transaction
                     const result = await this.replicateToNode(recoveredNodeId, 'INSERT', transaction, errors);
                     if (result.replicated) {
                         synced++;
                     }
-                
                 }
             }
 

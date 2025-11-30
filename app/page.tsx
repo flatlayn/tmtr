@@ -10,6 +10,8 @@ import {Button} from "@/components/ui/button";
 import CreateTransaction from "@/features/create/components/Create";
 import EditTransaction from "@/features/edit/components/Edit";
 import DeleteTransaction from "@/features/delete/components/Delete";
+import ConcurrencyTest from "@/features/concurrency/components/ConcurrencyTest";
+import RecoveryTest from "@/features/recovery/components/RecoveryTest";
 
 interface NodeStatus {
   nodeId: number;
@@ -180,125 +182,131 @@ export default function Home() {
           ))}
         </div>
 
-        {/* CRUD Tab */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-          {/* Create */}
-          <CreateTransaction nodeStatuses={nodeStatuses}></CreateTransaction>
-          <EditTransaction></EditTransaction>
-          <DeleteTransaction></DeleteTransaction>
-        </div>
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="view" className="mb-8">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="view">View</TabsTrigger>
+            <TabsTrigger value="crud">CRUD</TabsTrigger>
+            <TabsTrigger value="concurrency">Concurrency</TabsTrigger>
+            <TabsTrigger value="recovery">Recovery</TabsTrigger>
+          </TabsList>
 
-        {/* Actions Bar */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 mb-8">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <Activity className="text-blue-500" size={24}/>
-              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-                Transaction Viewer
-              </h2>
+          {/* View Tab */}
+          <TabsContent value="view">
+            {/* Actions Bar */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6 mb-8">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-3">
+                  <Activity className="text-blue-500" size={24}/>
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+                    Transaction Viewer
+                  </h2>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <select
+                      value={selectedNode}
+                      onChange={(e) => {
+                        const node = parseInt(e.target.value);
+                        setSelectedNode(node);
+                        loadTransactions(node);
+                      }}
+                      className="px-4 py-2 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                  >
+                    <option value={0}>Node 0 (Central)</option>
+                    <option value={1}>Node 1 (Partition)</option>
+                    <option value={2}>Node 2 (Partition)</option>
+                  </select>
+
+                  <button
+                      onClick={() => loadTransactions(selectedNode)}
+                      disabled={loading}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                    Refresh
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <select
-                  value={selectedNode}
-                  onChange={(e) => {
-                    const node = parseInt(e.target.value);
-                    setSelectedNode(node);
-                    loadTransactions(node);
-                  }}
-                  className="px-4 py-2 border rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-              >
-                <option value={0}>Node 0 (Central)</option>
-                <option value={1}>Node 1 (Partition)</option>
-                <option value={2}>Node 2 (Partition)</option>
-              </select>
-
-              <button
-                  onClick={() => loadTransactions(selectedNode)}
-                  disabled={loading}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
-              >
-                <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                Refresh
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Transactions Table */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-100 dark:bg-slate-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                    Trans ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                    Account ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                    Operation
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                    Balance
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                      <RefreshCw className="animate-spin mx-auto mb-2" size={24} />
-                      Loading transactions...
-                    </td>
-                  </tr>
-                ) : transactions[`node${selectedNode}`]?.length > 0 ? (
-                  transactions[`node${selectedNode}`].map((trans) => (
-                    <tr key={trans.trans_id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">
-                        {trans.trans_id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
-                        {trans.account_id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
-                        {trans.trans_date}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
-                        {trans.trans_type}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
-                        {trans.operation}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-900 dark:text-white font-medium">
-                        ${trans.amount.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-900 dark:text-white font-medium">
-                        ${trans.balance.toFixed(2)}
-                      </td>
+            {/* Transactions Table */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-100 dark:bg-slate-700">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        Trans ID
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        Operation
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        Amount
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        Balance
+                      </th>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                      No transactions found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                          <RefreshCw className="animate-spin mx-auto mb-2" size={24} />
+                          Loading transactions...
+                        </td>
+                      </tr>
+                    ) : transactions[`node${selectedNode}`]?.length > 0 ? (
+                      transactions[`node${selectedNode}`].map((trans) => (
+                        <tr key={trans.trans_id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">
+                            {trans.trans_id}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                            {trans.operation}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-900 dark:text-white font-medium">
+                            ${trans.amount.toFixed(2)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-900 dark:text-white font-medium">
+                            ${trans.balance.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                          No transactions found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* CRUD Tab */}
+          <TabsContent value="crud">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <CreateTransaction nodeStatuses={nodeStatuses} />
+              <EditTransaction />
+              <DeleteTransaction />
+            </div>
+          </TabsContent>
+
+          {/* Concurrency Tab */}
+          <TabsContent value="concurrency">
+            <ConcurrencyTest />
+          </TabsContent>
+
+          {/* Recovery Tab */}
+          <TabsContent value="recovery">
+            <RecoveryTest nodeStatuses={nodeStatuses} onRefreshHealth={checkHealth} />
+          </TabsContent>
+        </Tabs>
 
         {/* Footer Info */}
         <div className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400">

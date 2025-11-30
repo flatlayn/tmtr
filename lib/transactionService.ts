@@ -58,12 +58,16 @@ export class TransactionService {
      * Create a new transaction
      */
     async createTransaction(data: CreateTransactionInput): Promise<number> {
-        const [result] = await this.pool.query<ResultSetHeader>(
-            `INSERT INTO trans (account_id, trans_date, trans_type, operation, amount, balance) 
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [data.account_id, data.trans_date, data.trans_type, data.operation, data.amount, data.balance]
+        // Generate a unique trans_id since AUTO_INCREMENT may not be enabled
+        const transId = Math.floor(Math.random() * 1000000) + 1000000;
+        
+        await this.pool.query(
+            `INSERT INTO trans (trans_id, operation, amount, balance) 
+             VALUES (?, ?, ?, ?)`,
+            [transId, data.operation, data.amount, data.balance]
         );
-        return result.insertId;
+        
+        return transId;
     }
 
     /**

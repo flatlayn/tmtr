@@ -1,9 +1,10 @@
 // Transaction type based on the trans table from finance dataset
+// account_id, trans_date, trans_type are optional since they're not used in the actual database
 export interface Transaction {
     trans_id: number;
-    account_id: number;
-    trans_date: string;
-    trans_type: string;
+    account_id?: number;
+    trans_date?: string;
+    trans_type?: string;
     operation: string;
     amount: number;
     balance: number;

@@ -21,10 +21,11 @@ const executeJob = async (job: any): Promise<boolean> => {
             const transaction = job.payload;
             // Execute the INSERT logic (handle idempotency)
             // This mirrors the logic from your replicateToNode helper
+            const transaction = job.payload;
             await targetService.executeQuery(
-                `INSERT INTO trans (trans_id, account_id, trans_date, trans_type, operation, amount, balance) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [/* ... values from transaction ... */]
+                `INSERT INTO trans (trans_id, operation, amount, balance) 
+                 VALUES (?, ?, ?, ?)`,
+                [transaction.trans_id, transaction.operation, transaction.amount, transaction.balance]
             );
         } else if (job.operation_type === 'UPDATE') {
             const updates = job.payload;
