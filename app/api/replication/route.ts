@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ReplicationService } from '@/lib/replicationService';
 import { ApiResponse } from '@/lib/types';
+import {getTransactionService} from "@/lib/transactionService";
 
 /**
  * POST /api/replication
@@ -35,14 +36,21 @@ export async function POST(request: NextRequest) {
                 });
 
             case 'DELETE':
-                const deleteResult = await ReplicationService.replicateDelete(
-                    sourceNodeId,
-                    transId
-                );
+                if (!transId) {
+                    return NextResponse.json<ApiResponse>(
+                        { success: false, error: 'transId is required for DELETE action' },
+                        { status: 400 }
+                    );
+                }
+
+                const localService = getTransactionService(sourceNodeId);
+
+                const deleteSuccess = await localService.deleteTransaction(transId);
+
                 return NextResponse.json<ApiResponse>({
-                    success: deleteResult.success,
-                    data: deleteResult,
-                });
+                    success: deleteSuccess,
+                    data: { transId, status: deleteSuccess ? 'deleted' : 'not found' },
+                }, { status: deleteSuccess ? 200 : 404 });
 
             case 'SYNC':
                 const { recoveredNodeId } = body;

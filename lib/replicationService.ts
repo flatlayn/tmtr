@@ -1,6 +1,7 @@
 import { getTransactionService } from './transactionService';
 import { Transaction, CreateTransactionInput, UpdateTransactionInput } from './types';
 import { checkNodeHealth } from './db';
+import { PersistenceService } from './persistenceService';
 
 /**
  * Replication Service
@@ -14,24 +15,16 @@ import { checkNodeHealth } from './db';
 export class ReplicationService {
     /**
      * Determine which partition node (1 or 2) should contain a transaction
-     * This logic depends on your fragmentation criteria
-     * TODO: Update this based on your actual fragmentation strategy
+     * based on the parity of the transId.
      */
-    private static determinePartitionNode(transaction: Transaction | CreateTransactionInput): number {
-        // Example fragmentation by account_id:
-        // - Node 1: account_id with odd numbers
-        // - Node 2: account_id with even numbers
-        
-        // TODO: Replace with your actual fragmentation criteria
-        // (could be based on date, account_id range, transaction type, etc.)
-        return transaction.account_id % 2 === 0 ? 2 : 1;
+    private static determinePartitionNode(transId: number): number {
+        // Node 1: Odd trans_id
+        // Node 2: Even trans_id
+        return transId % 2 === 0 ? 2 : 1;
     }
 
     /**
      * Replicate INSERT operation
-     * @param sourceNodeId - The node where the insert originated
-     * @param transId - The ID of the newly inserted transaction
-     * @param transaction - The transaction data
      */
     static async replicateInsert(
         sourceNodeId: number,
@@ -39,12 +32,13 @@ export class ReplicationService {
         transaction: CreateTransactionInput
     ): Promise<{ success: boolean; errors: string[] }> {
         const errors: string[] = [];
+        // The transaction must be passed with its assigned trans_id
         const fullTransaction: Transaction = { ...transaction, trans_id: transId };
 
         try {
             if (sourceNodeId === 0) {
-                // Central node → Replicate to appropriate partition node
-                const targetNode = this.determinePartitionNode(fullTransaction);
+                // Central node → Replicate to appropriate partition node based on transId
+                const targetNode = this.determinePartitionNode(transId); // FIX 1: Use transId
                 await this.replicateToNode(targetNode, 'INSERT', fullTransaction, errors);
             } else {
                 // Partition node (1 or 2) → Replicate to central node (0)
@@ -69,7 +63,7 @@ export class ReplicationService {
         const errors: string[] = [];
 
         try {
-            // First, get the full transaction from source node
+            // First, get the full transaction from source node (needed for payload and existence check)
             const sourceService = getTransactionService(sourceNodeId);
             const fullTransaction = await sourceService.getTransactionById(transId);
 
@@ -80,7 +74,7 @@ export class ReplicationService {
 
             if (sourceNodeId === 0) {
                 // Central node → Replicate to appropriate partition node
-                const targetNode = this.determinePartitionNode(fullTransaction);
+                const targetNode = this.determinePartitionNode(transId); // FIX 1: Use transId
                 await this.replicateToNode(targetNode, 'UPDATE', fullTransaction, errors, updates);
             } else {
                 // Partition node → Replicate to central node
@@ -100,36 +94,27 @@ export class ReplicationService {
     static async replicateDelete(
         sourceNodeId: number,
         transId: number
-    ): Promise<{ success: boolean; errors: string[] }> {
+    ): Promise<{ success: boolean; errors: string[]; queued: number }> {
         const errors: string[] = [];
+        let queuedCount = 0;
 
-        try {
-            // Before deleting, we need to know which partition node it belongs to
-            // Get the transaction first
-            const sourceService = getTransactionService(sourceNodeId);
-            const transaction = await sourceService.getTransactionById(transId);
-
-            if (!transaction) {
-                // Transaction might already be deleted, still try to replicate
-                console.warn(`Transaction ${transId} not found on source node ${sourceNodeId}`);
-            }
-
-            if (sourceNodeId === 0) {
-                // Central node → Replicate to appropriate partition node
-                if (transaction) {
-                    const targetNode = this.determinePartitionNode(transaction);
-                    await this.deleteFromNode(targetNode, transId, errors);
-                }
-            } else {
-                // Partition node → Replicate to central node
-                await this.deleteFromNode(0, transId, errors);
-            }
-
-            return { success: errors.length === 0, errors };
-        } catch (error: any) {
-            errors.push(`Replication failed: ${error.message}`);
-            return { success: false, errors };
+        const targetNodes: number[] = [];
+        if (sourceNodeId === 0 ){
+            // Central node deletes -> replicate to the partition node responsible for this ID
+            targetNodes.push(this.determinePartitionNode(transId));
+        } else {
+            // Partition node deletes -> replicate only to the central node (0)
+            targetNodes.push(0);
         }
+
+        for (const targetNodeId of targetNodes) {
+            const result = await this.deleteFromNode(targetNodeId, transId, errors)
+            if (result.queued) {
+                queuedCount++;
+            }
+        }
+
+        return { success: errors.length === 0, errors, queued: queuedCount };
     }
 
     /**
@@ -141,29 +126,32 @@ export class ReplicationService {
         transaction: Transaction,
         errors: string[],
         updates?: UpdateTransactionInput
-    ): Promise<void> {
-        // Check if target node is healthy
+    ): Promise<{ replicated: boolean }> { // Return result status
         const isHealthy = await checkNodeHealth(targetNodeId);
+
         if (!isHealthy) {
+            PersistenceService.enqueue({
+                transId: transaction.trans_id,
+                targetNodeId,
+                type: operation,
+                data: operation === 'INSERT' ? transaction : updates
+            });
             errors.push(`Target node ${targetNodeId} is not healthy - replication queued for retry`);
-            // TODO: Queue this for retry when node comes back online
-            return;
+            return { replicated: false };
         }
 
         const targetService = getTransactionService(targetNodeId);
 
         try {
             if (operation === 'INSERT') {
-                // Check if transaction already exists (idempotency)
                 const existing = await targetService.getTransactionById(transaction.trans_id);
                 if (existing) {
                     console.log(`Transaction ${transaction.trans_id} already exists on node ${targetNodeId}, skipping`);
-                    return;
+                    return { replicated: true }; // Already exists, considered successful
                 }
 
-                // Insert the transaction with the same ID
                 await targetService.executeQuery(
-                    `INSERT INTO trans (trans_id, account_id, trans_date, trans_type, operation, amount, balance) 
+                    `INSERT INTO trans (trans_id, account_id, trans_date, trans_type, operation, amount, balance)
                      VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     [
                         transaction.trans_id,
@@ -178,8 +166,17 @@ export class ReplicationService {
             } else if (operation === 'UPDATE') {
                 await targetService.updateTransaction(transaction.trans_id, updates || transaction);
             }
+            return { replicated: true };
         } catch (error: any) {
-            errors.push(`Failed to replicate to node ${targetNodeId}: ${error.message}`);
+            // Unexpected DB error (connection dropped, bad query) - queue for safety
+            PersistenceService.enqueue({
+                transId: transaction.trans_id,
+                targetNodeId,
+                type: operation,
+                data: operation === 'INSERT' ? transaction : updates
+            });
+            errors.push(`Failed to replicate to node ${targetNodeId} due to DB error: ${error.message} - operation queued`);
+            return { replicated: false };
         }
     }
 
@@ -190,73 +187,67 @@ export class ReplicationService {
         targetNodeId: number,
         transId: number,
         errors: string[]
-    ): Promise<void> {
+    ): Promise<{ deleted: boolean, queued: boolean }> {
         const isHealthy = await checkNodeHealth(targetNodeId);
+
         if (!isHealthy) {
-            errors.push(`Target node ${targetNodeId} is not healthy - replication queued for retry`);
-            // TODO: Queue this for retry
-            return;
+            PersistenceService.enqueue({
+                transId,
+                targetNodeId,
+                type: 'DELETE',
+            });
+            errors.push(`Target node ${targetNodeId} is not healthy - DELETE queued for retry`);
+            return { deleted: false, queued: true };
         }
 
         const targetService = getTransactionService(targetNodeId);
 
         try {
             await targetService.deleteTransaction(transId);
+            return { deleted: true, queued: false };
         } catch (error: any) {
-            errors.push(`Failed to delete from node ${targetNodeId}: ${error.message}`);
+            // Unexpected DB error - queue for safety
+            PersistenceService.enqueue({
+                transId,
+                targetNodeId,
+                type: 'DELETE',
+            });
+            errors.push(`Failed to delete from node ${targetNodeId}: ${error.message} - operation queued`);
+            return { deleted: false, queued: true };
         }
     }
 
     /**
      * Sync a node that came back online after failure
-     * Compares central node with partition node and syncs missing transactions
      */
-    static async syncNodeAfterRecovery(recoveredNodeId: number): Promise<{ 
-        success: boolean; 
-        synced: number; 
-        errors: string[] 
+    static async syncNodeAfterRecovery(recoveredNodeId: number): Promise<{
+        success: boolean;
+        synced: number;
+        errors: string[]
     }> {
         const errors: string[] = [];
         let synced = 0;
 
         try {
             if (recoveredNodeId === 0) {
-                // Central node recovered - sync from both partition nodes
-                // This is complex and requires merging data from Node 1 and Node 2
-                // TODO: Implement central node recovery
-                errors.push('Central node recovery not yet implemented');
+                errors.push('Central node recovery not yet implemented (requires merging)');
             } else {
                 // Partition node recovered - sync from central node
                 const centralService = getTransactionService(0);
-                const partitionService = getTransactionService(recoveredNodeId);
-
-                // Get all transactions from central node (in production, you'd paginate this)
-                const allTransactions = await centralService.getAllTransactions(10000);
+                const allTransactions = await centralService.getAllTransactions(10000); // Get all from central
 
                 for (const transaction of allTransactions) {
                     // Check if this transaction belongs to this partition
-                    const targetNode = this.determinePartitionNode(transaction);
+                    const targetNode = this.determinePartitionNode(transaction.trans_id);
+
                     if (targetNode !== recoveredNodeId) continue;
 
-                    // Check if it exists in the partition
-                    const existing = await partitionService.getTransactionById(transaction.trans_id);
-                    if (!existing) {
-                        // Insert missing transaction
-                        await partitionService.executeQuery(
-                            `INSERT INTO trans (trans_id, account_id, trans_date, trans_type, operation, amount, balance) 
-                             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                            [
-                                transaction.trans_id,
-                                transaction.account_id,
-                                transaction.trans_date,
-                                transaction.trans_type,
-                                transaction.operation,
-                                transaction.amount,
-                                transaction.balance
-                            ]
-                        );
+                    // FIX 4: Use the existing replicateToNode helper for robust insertion logic
+                    const result = await this.replicateToNode(recoveredNodeId, 'INSERT', transaction, errors);
+                    if (result.replicated) {
                         synced++;
                     }
+                
                 }
             }
 
