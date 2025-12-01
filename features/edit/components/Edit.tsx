@@ -7,7 +7,7 @@ import {debounce} from "next/dist/server/utils";
 
 
 interface TransactionUpdates {
-    trans_type?: string;
+    type?: string;
     operation?: string;
     amount?: number;
     balance?: number;
