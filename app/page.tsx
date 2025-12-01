@@ -23,7 +23,7 @@ interface Transaction {
   trans_id: number;
   account_id: number;
   trans_date: string;
-  trans_type: string;
+  type: string;
   operation: string;
   amount: number;
   balance: number;
@@ -240,6 +240,9 @@ export default function Home() {
                         Trans ID
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         Operation
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
@@ -253,7 +256,7 @@ export default function Home() {
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                     {loading ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                        <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
                           <RefreshCw className="animate-spin mx-auto mb-2" size={24} />
                           Loading transactions...
                         </td>
@@ -263,6 +266,9 @@ export default function Home() {
                         <tr key={trans.trans_id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">
                             {trans.trans_id}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                            {trans.type || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
                             {trans.operation}
@@ -277,7 +283,7 @@ export default function Home() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                        <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
                           No transactions found
                         </td>
                       </tr>

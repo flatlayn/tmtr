@@ -142,17 +142,17 @@ export default function EditTransaction() {
             </form>
             <div className='flex w-full gap-5'>
                 <Select
-                    onValueChange={(value) => handleUpdateChange('trans_type', value)}
-                    value={updates.trans_type || originalData?.trans_type}
+                    onValueChange={(value) => handleUpdateChange('type', value)}
+                    value={updates.type || originalData?.type}
                     disabled={isLoading}
                 >
                     <SelectTrigger className='w-full'>
                         <SelectValue placeholder="Type"></SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value='credit'>Credit</SelectItem>
-                        <SelectItem value='debit'>Debit</SelectItem>
-                        <SelectItem value='vyber'>VYBER</SelectItem>
+                        <SelectItem value='Credit'>Credit</SelectItem>
+                        <SelectItem value='Debit (Withdrawal)'>Debit (Withdrawal)</SelectItem>
+                        <SelectItem value='VYBER'>VYBER</SelectItem>
                     </SelectContent>
                 </Select>
                 <Select
