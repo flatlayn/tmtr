@@ -15,6 +15,7 @@ interface CreateTransactionProps {
 }
 
 interface NewTransaction {
+    type?: string;
     operation: string;
     amount: number;
     balance: number;
@@ -94,6 +95,22 @@ export default function CreateTransaction({ nodeStatuses } : CreateTransactionPr
     return (
         <div className='border-1 rounded-md p-3 bg-white drop-shadow-sm gap-3'>
             <h2 className='ml-1 mb-2 text-xl font-semibold'>Create Transaction</h2>
+            <div className='mb-3'>
+                <Select
+                    onValueChange={(value: string) => handleInputChange('type', value)}
+                    value={formData.type}
+                    disabled={isLoading}
+                >
+                    <SelectTrigger className='w-full'>
+                        <SelectValue placeholder='Select Type'></SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value='Credit'>Credit</SelectItem>
+                        <SelectItem value='Debit (Withdrawal)'>Debit (Withdrawal)</SelectItem>
+                        <SelectItem value='VYBER'>VYBER</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
             <div className='mb-3'>
                 <Select
                     onValueChange={(value: string) => handleInputChange('operation', value)}
