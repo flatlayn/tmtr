@@ -18,7 +18,6 @@ const executeJob = async (job: any): Promise<boolean> => {
 
     try {
         if (job.operation_type === 'INSERT') {
-            const transaction = job.payload;
             // Execute the INSERT logic (handle idempotency)
             // This mirrors the logic from your replicateToNode helper
             const transaction = job.payload;
