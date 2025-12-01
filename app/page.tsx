@@ -183,8 +183,8 @@ export default function Home() {
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="view" className="mb-8">
-          <TabsList className="grid w-full grid-cols-5">
+        <Tabs defaultValue="view" className="mb-8 ">
+          <TabsList className="grid w-[125%] grid-cols-5">
             <TabsTrigger value="view">View</TabsTrigger>
             <TabsTrigger value="crud">CRUD</TabsTrigger>
             <TabsTrigger value="concurrency">Concurrency</TabsTrigger>
